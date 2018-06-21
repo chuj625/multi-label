@@ -11,7 +11,7 @@ import json
 # label_dict = {'notanyclass':0}
 # entity_dict = {"<crf_org>": 2, "<numpure>": 1, "<person>": 3, "o": 0, "<time>": 4}
 entity_dict = {"<crf_org>": 2, "<numpure>": 1, "<person>": 3, "o": 0, "<time>": 4}
-entity_dict = {"org": 2, "num": 1, "per": 3, "o": 0, "tim": 4}
+#entity_dict = {"org": 2, "num": 1, "per": 3, "o": 0, "tim": 4}
 entity_generalize = {"org": "<crf_org>", "num": "<numpure>", "per": "<s_person>", "tim": "<time>"}
 
 def clean_str(string):
@@ -34,20 +34,6 @@ def clean_str(string):
     string = re.sub(r"\s{2,}", " ", string)
     return string.strip().lower()
 
-def get_label_id(label, label_dict, is_train):
-    """
-    获得label下标。
-    Args:
-        label:  标签
-
-    Returns:
-        下标, int
-    """
-    if is_train:
-        if label not in label_dict:
-            label_dict[label] = len(label_dict)
-    return label_dict[label]
-
 def get_entity_id(entity, is_train):
     """
     获得label下标。
@@ -62,84 +48,47 @@ def get_entity_id(entity, is_train):
             entity_dict[entity] = len(entity_dict)
     return entity_dict[entity]
 
-def load_data_and_labels(file, label_dict_path, is_train, is_trigger=False):
-    label_dict = load_label_dict(label_dict_path)
-    # print label_dict
+def load_data_and_labels(file, class_num):
+    '''
+    读取输入数据
+    arg:
+        file: 输入数据
+        class_num: 类别数量
+    return:
+        ny: 标注的分类结果
+        input_x: 内容分词结果，[]
+        entity: 实体类型
+    '''
     input_x = []
-    input_title = []
-    input_sf = []
     y = []
     entity = []
-    beg = []
-    end = []
     vocab = set()
     triggers = []
     for ln in open(file, 'r'):
-        ln = ln.strip().split('\t')
-        triggers.append(ln[1].decode('utf-8'))
-        title_list = json.loads(ln[2])
-        beg.append(int(ln[3]))
-        end.append(int(ln[4]))
-        x_list = json.loads(ln[5])
-        # 关键词
-        trigger = x_list[int(ln[3]) : int(ln[4])+1]
-        # 标题
-        # title_list.extend(trigger)
-        title_text = [x[1] for x in title_list]
-        # print json.dumps(title_text, ensure_ascii=False)
-        input_title.append(title_text)
+        ln = ln.decode('utf-8')
+        fe = ln.strip().split('\t')
+        if len(fe) <3:
+            continue
+        w = fe[1].split(' ')
+        e = fe[2].split(' ')
+        yy = int(fe[0])
         # 词
-        # x_text = [x[1] for x in x_list]
-        x_text = [entity_generalize[x[3]] if x[3] in entity_generalize else x[1] for x in x_list]
+        #x_text = [entity_generalize[x[3]] if x[3] in entity_generalize else x[1] for x in x_list]
         # print json.dumps(x_text, ensure_ascii=False)
-        vocab = vocab|set(x_text)
-        input_x.append(x_text)
+        vocab = vocab|set(w)
+        input_x.append(w)   # 不泛化
         # 标签
-        label = ln[0].decode()
-        y.append(get_label_id(label, label_dict, is_train))
+        y.append(yy)
         # 实体类型
-        ent = [entity_dict[x[3]] for x in x_list]
-        entity.append(ent)
-        # 是、否
-        # print json.dumps(x_text, ensure_ascii=False)
-        index = None
-        if "■" in x_text:
-            index = x_text.index("■")
-        elif " " in x_text:
-            index = x_text.index(" ")
-        # print index
-        if index and index+1<len(x_text):
-            if x_text[index+1] == "是":
-                if "未" in x_text:
-                    sf = 1
-                else:
-                    sf = 3
-            elif x_text[index+1] == "否":
-                if "未" in x_text:
-                    sf = 2
-                else:
-                    sf = 4
-        else:
-            sf = 0
-        input_sf.append(sf)
-    # print sorted(label_dict.items(), lambda x, y: cmp(x[1], y[1]))
-    # print json.dumps(entity_dict, ensure_ascii=False)
-    # print entity
-    ny = np.zeros((len(y), len(label_dict)))
+        entity.append(e)
+    ny = np.zeros((len(y), class_num))
     for i, items in enumerate(y, 0):
         ny[i, items] = 1
-    # with tf.Session() as sess:
-    #     ny = sess.run(tf.one_hot(y, len(label_dict), 1, 0))
-    save_label_dict(label_dict_path, label_dict)
-    # return vocab, input_x, input_title, ny, beg, end, entity
-    if is_trigger:
-        return input_x, input_title, ny, beg, end, entity, input_sf, triggers
-    else:
-        return input_x, input_title, ny, beg, end, entity, input_sf
+    return ny, input_x, entity
 
 def load_label_dict(file):
     f = open(file, "r")
-    js = json.loads(f.readline())
+    js = json.loads(f.readline().strip())
     return js
 
 def save_label_dict(file, label_dict):
@@ -149,6 +98,9 @@ def save_label_dict(file, label_dict):
 
 # Data Preparation
 def trigger2mid (input_x, beg, end, input_entity, n):
+    '''
+    将处发词放在文本中间, 提取窗口
+    '''
     x_list = []
     pos_list = []
     entity_list = []
@@ -183,6 +135,30 @@ def trigger2mid (input_x, beg, end, input_entity, n):
         entity_list.append(entity)
     return x_list, pos_list, entity_list
 
+def data_trim(input_x, input_entity, n):
+    '''
+    将数据拉齐，统一截取长度为n
+    arg:
+        input_x: 词
+        input_entity: ner
+        n: 最大长度
+    return
+        xres: 词
+        eres: ner
+    '''
+    xres = []
+    eres = []
+    for x, e in zip(input_x, input_entity):
+        clen = len(x)
+        if n <= clen:
+            xres.append(x[:n])
+            eres.append(e[:n])
+        else:
+            xres.append(x + ["<UNK>"]*(n-clen))
+            eres.append(e + [0] * (n-clen))
+    return xres, eres
+
+
 def batch_iter(data, batch_size, num_epochs, shuffle=True):
     """
     Generates a batch iterator for a dataset.
@@ -203,4 +179,6 @@ def batch_iter(data, batch_size, num_epochs, shuffle=True):
             yield shuffled_data[start_index:end_index]
 
 if __name__ == '__main__':
-    load_data_and_labels("../data/test_filter_data2", "../data/label_dict_1", False)
+    ny, nx, ne = load_data_and_labels("data/preprocess/dev.seg", class_num=10)
+    for y, x, e in zip(ny, nx, ne):
+        print y, json.dumps(x, ensure_ascii=False), e

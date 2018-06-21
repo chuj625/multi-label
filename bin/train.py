@@ -22,10 +22,12 @@ from tensorflow.contrib import learn
 
 # Data loading params
 # tf.flags.DEFINE_float("dev_sample_percentage", .1, "Percentage of the training data to use for validation")
-tf.flags.DEFINE_string("train_data", "../data/train_data", "Data source for the train data.")
-tf.flags.DEFINE_string("test_data", "../data/test_data", "Data source for the test data.")
-tf.flags.DEFINE_string("label_dict", "../data/label_dict", "Data source for the label_dict data.")
-tf.flags.DEFINE_string("word2vec", "../tools/model.max.300/voc.txt", "Data source for the word2vec data.")
+dic_path='data'
+dat_path='data/preprocess'
+tf.flags.DEFINE_string("train_data", "{}/train.seg".format(dat_path), "Data source for the train data.")
+tf.flags.DEFINE_string("test_data", "{}/dev.seg".format(dat_path), "Data source for the test data.")
+tf.flags.DEFINE_string("label_dict", "{}/label_dict".format(dic_path), "Data source for the label_dict data.")
+tf.flags.DEFINE_string("word2vec", "{}/embedding/voc.txt".format(dic_path), "Data source for the word2vec data.")
 
 # Model Hyperparameters
 tf.flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of character embedding (default: 128)")
@@ -62,13 +64,14 @@ print("")
 
 # Load data
 print("Loading data...")
-# train_vocab, x_train, title_train, y_train, train_beg, train_end, train_entity = data_helpers.load_data_and_labels(FLAGS.train_data, FLAGS.label_dict, is_train=True)
-# dev_vocab, x_dev, title_dev, y_dev, dev_beg, dev_end, dev_entity = data_helpers.load_data_and_labels(FLAGS.test_data, FLAGS.label_dict, is_train=False)
-# x_vocab = train_vocab|dev_vocab
-# print " ".join(x_vocab)
-
-x_train, title_train, y_train, train_beg, train_end, train_entity, train_sf = data_helpers.load_data_and_labels(FLAGS.train_data, FLAGS.label_dict, is_train=True)
-x_dev, title_dev, y_dev, dev_beg, dev_end, dev_entity, dev_sf = data_helpers.load_data_and_labels(FLAGS.test_data, FLAGS.label_dict, is_train=False)
+#x_train, title_train, y_train, train_beg, train_end, train_entity, train_sf = \
+y_train, x_train, train_entity = \
+        data_helpers.load_data_and_labels(
+                FLAGS.train_data, class_num=10)
+#x_dev, title_dev, y_dev, dev_beg, dev_end, dev_entity, dev_sf = \
+y_dev, x_dev, dev_entity = \
+        data_helpers.load_data_and_labels(
+                FLAGS.test_data, class_num=10)
 
 # # 确定窗口大小n（n=13）
 # # ==================================================
@@ -83,11 +86,16 @@ x_dev, title_dev, y_dev, dev_beg, dev_end, dev_entity, dev_sf = data_helpers.loa
 # print num_1
 # print len(train_beg)
 
-x_train, train_pos, train_entity = data_helpers.trigger2mid(x_train, train_beg, train_end, train_entity, FLAGS.sent_length)
-x_dev, dev_pos, dev_entity = data_helpers.trigger2mid(x_dev, dev_beg, dev_end, dev_entity, FLAGS.sent_length)
+x_train, train_pos, train_entity = \
+        data_helpers.data_trim(x_train, train_entity, FLAGS.sent_length)
+x_dev, dev_pos, dev_entity = \
+        data_helpers.trigger2mid(x_dev, dev_entity, FLAGS.sent_length)
 
 # 装载词向量
 def loadWord2Vec(filename):
+    '''
+    '''
+    print "loaded word2vec..."
     vocab = []
     embd = []
     fr = open(filename, 'r')
@@ -99,8 +107,8 @@ def loadWord2Vec(filename):
         row = line.strip().split(' ')
         vocab.append(row[0].decode())
         embd.append(row[1:])
-    print "loaded word2vec..."
     fr.close()
+    print "word2vec load over..."
     return vocab, embd
 
 vocab, embd = loadWord2Vec(FLAGS.word2vec)
@@ -122,11 +130,15 @@ def tokenizer(iterator):
   for value in iterator:
       yield TOKENIZER_RE.findall(value)
 
+# 把文档id化
 max_x_length = max([len(x) for x in x_train])
-# print max_document_length
-vocab_processor = learn.preprocessing.VocabularyProcessor(max_x_length, tokenizer_fn=tokenizer)
-pretrain = vocab_processor.fit(vocab)
+# 文档最大长度max_x_length， 采用tokenizer分词
+vocab_processor = learn.preprocessing.VocabularyProcessor(
+        max_x_length, tokenizer_fn=tokenizer)
+pretrain = vocab_processor.fit(vocab)   # 创建词表
+# 训练集id化
 x_train = np.array(list(vocab_processor.transform([" ".join(x) for x in x_train])))
+# 开发集id化
 x_dev = np.array(list(vocab_processor.transform([" ".join(x) for x in x_dev])))
 
 # 统计词表覆盖率
@@ -141,13 +153,6 @@ x_dev = np.array(list(vocab_processor.transform([" ".join(x) for x in x_dev])))
 # print len(vocab_processor.vocabulary_)
 
 # print json.dumps(title_train, ensure_ascii=False)
-max_title_length = max([len(x) for x in title_train])
-# print max_document_length
-title_vocab_processor = learn.preprocessing.VocabularyProcessor(max_title_length, tokenizer_fn=tokenizer)
-pretrain = title_vocab_processor.fit(vocab)
-title_train = np.array(list(title_vocab_processor.transform([" ".join(x) for x in title_train])))
-title_dev = np.array(list(title_vocab_processor.transform([" ".join(x) for x in title_dev])))
-# print title_train
 
 # Training
 # ==================================================
