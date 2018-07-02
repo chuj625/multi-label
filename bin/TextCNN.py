@@ -15,12 +15,10 @@ class TextCNN(object):
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
     """
     def __init__(self \
-                , sequence_length, title_length\
+                , sequence_length\
                 , num_classes, vocab_size \
-                , embedding_size, embedding_size_pos, embedding_size_entity \
-                , embedding_size_sf \
+                , embedding_size, embedding_size_entity \
                 , filter_sizes, num_filters \
-                , title_filter_sizes, title_num_filters \
                 , sent_length, entity_length \
                 , l2_reg_lambda=0.0
             ):
@@ -30,7 +28,7 @@ class TextCNN(object):
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
 
-        self.input_title = tf.placeholder(tf.int32, [None, title_length], name="input_title")
+        #self.input_title = tf.placeholder(tf.int32, [None, title_length], name="input_title")
 
         self.input_pos = tf.placeholder(tf.int32, [None, sequence_length], name="input_pos")
         self.input_entity = tf.placeholder(tf.int32, [None, sequence_length], name="input_entity")
@@ -49,56 +47,66 @@ class TextCNN(object):
             self.embedding_init = W.assign(self.embedding_placeholder)
 
             self.embedded_chars = tf.nn.embedding_lookup(W, self.input_x)
-            self.embedded_title = tf.nn.embedding_lookup(W, self.input_title)
+            #self.embedded_title = tf.nn.embedding_lookup(W, self.input_title)
 
+            '''
             # 相对位置embedding[0-(sent_length-1)]
             W = tf.Variable(tf.random_uniform([(sent_length-1)/2+1, embedding_size_pos], -1.0, 1.0),name="W_pos")
             self.embedded_pos = tf.nn.embedding_lookup(W, self.input_pos)
+            '''
 
             # 实体类型embedding
             W = tf.Variable(tf.random_uniform([entity_length, embedding_size_entity], -1.0, 1.0), name="W_entity")
             self.embedded_entity = tf.nn.embedding_lookup(W, self.input_entity)
 
             # embedding拼接
-            self.embedded = tf.concat([self.embedded_chars, self.embedded_pos, self.embedded_entity], 2)
+            self.embedded = tf.concat([self.embedded_chars, self.embedded_entity], 2)
 
             # embedding矩阵扩展一维
             self.embedded_chars_expanded = tf.expand_dims(self.embedded, -1)
-            self.embedded_title_expanded = tf.expand_dims(self.embedded_title, -1)
+            #self.embedded_title_expanded = tf.expand_dims(self.embedded_title, -1)
 
+            '''
             # 是否embedding
             W = tf.Variable(tf.random_uniform([5, embedding_size_sf], -1.0, 1.0),name="W_sf")
             self.embedded_sf = tf.nn.embedding_lookup(W, self.input_sf)
+            '''
 
         # Create a convolution + maxpool layer for each filter size
         pooled_outputs = []
         # 词特征
         name_scope = "word"
-        embedding_dim = embedding_size + embedding_size_pos + embedding_size_entity
-        word_pooled_outputs = self.conv(name_scope, filter_sizes, embedding_dim, num_filters, sequence_length, self.embedded_chars_expanded)
+        embedding_dim = embedding_size + embedding_size_entity
+        word_pooled_outputs = self.conv(name_scope, filter_sizes, embedding_dim \
+                , num_filters, sequence_length \
+                , self.embedded_chars_expanded)
         pooled_outputs.extend(word_pooled_outputs)
+        '''
         # 标题特征
         name_scope = "title"
         title_pooled_outputs = self.conv(name_scope, title_filter_sizes, embedding_size, title_num_filters, title_length, self.embedded_title_expanded)
         pooled_outputs.extend(title_pooled_outputs)
+        '''
         # Combine all the pooled features
-        num_filters_total = num_filters * len(filter_sizes) + title_num_filters * len(title_filter_sizes)
+        num_filters_total = num_filters * len(filter_sizes)
         self.h_pool = tf.concat(pooled_outputs, 3)
         self.h_pool_flat = tf.reshape(self.h_pool, [-1, num_filters_total])
 
+        '''
         # 合并词(标题)特征和是否特征
         self.h = tf.concat([self.h_pool_flat, self.embedded_sf], 1)
+        '''
 
         # Add dropout
         with tf.name_scope("dropout"):
-            self.h_drop = tf.nn.dropout(self.h, self.dropout_keep_prob)
+            self.h_drop = tf.nn.dropout(self.h_pool_flat, self.dropout_keep_prob)
             # tf.add_to_collection('h_drop', self.h_drop)
 
         # Final (unnormalized) scores and predictions
         with tf.name_scope("output"):
             W = tf.get_variable(
                 "W",
-                shape=[num_filters_total + embedding_size_sf, num_classes],
+                shape=[num_filters_total, num_classes],
                 initializer=tf.contrib.layers.xavier_initializer())
             b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b")
             l2_loss += tf.nn.l2_loss(W)
@@ -131,7 +139,17 @@ class TextCNN(object):
         '''
 
 
-    def conv(self, name_scope, filter_sizes, embedding_dim, num_filters, sequence_length, embedded):
+    def conv(self, name_scope, filter_sizes, embedding_dim, num_filters
+            , sequence_length, embedded):
+        '''
+        arg:
+            name_scope: 名称域
+            filter_sizes:
+            embedding_dim:
+            num_filters:
+            sequence_length:
+            embedded:
+        '''
         pooled_outputs = []
         for i, filter_size in enumerate(filter_sizes):
             with tf.name_scope("%s_conv-maxpool-%s" % (name_scope, filter_size)):

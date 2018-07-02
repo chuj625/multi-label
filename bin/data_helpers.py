@@ -9,9 +9,7 @@ import re
 import json
 
 # label_dict = {'notanyclass':0}
-# entity_dict = {"<crf_org>": 2, "<numpure>": 1, "<person>": 3, "o": 0, "<time>": 4}
 entity_dict = {"<crf_org>": 2, "<numpure>": 1, "<person>": 3, "o": 0, "<time>": 4}
-#entity_dict = {"org": 2, "num": 1, "per": 3, "o": 0, "tim": 4}
 entity_generalize = {"org": "<crf_org>", "num": "<numpure>", "per": "<s_person>", "tim": "<time>"}
 
 def clean_str(string):
@@ -48,12 +46,13 @@ def get_entity_id(entity, is_train):
             entity_dict[entity] = len(entity_dict)
     return entity_dict[entity]
 
-def load_data_and_labels(file, class_num):
+def load_data_and_labels(file, class_num, is_train=False):
     '''
     读取输入数据
     arg:
         file: 输入数据
         class_num: 类别数量
+        is_train: 是否为训练过程，如果为训练过程可能增加新标签
     return:
         ny: 标注的分类结果
         input_x: 内容分词结果，[]
@@ -80,6 +79,7 @@ def load_data_and_labels(file, class_num):
         # 标签
         y.append(yy)
         # 实体类型
+        e = [get_entity_id(x, is_train) for x in e]
         entity.append(e)
     ny = np.zeros((len(y), class_num))
     for i, items in enumerate(y, 0):
@@ -162,11 +162,16 @@ def data_trim(input_x, input_entity, n):
 def batch_iter(data, batch_size, num_epochs, shuffle=True):
     """
     Generates a batch iterator for a dataset.
+    data: 输入数据
+    batch_size: 每个batch大小
+    num_epochs: epoch数量
+    shuffle: 是否进行shuffle, 默认进行shffle
     """
     data = np.array(data)
     data_size = len(data)
     num_batches_per_epoch = int((len(data)-1)/batch_size) + 1
     for epoch in range(num_epochs):
+        print "epoch: {}#".format(epoch)
         # Shuffle the data at each epoch
         if shuffle:
             shuffle_indices = np.random.permutation(np.arange(data_size))

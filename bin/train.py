@@ -45,7 +45,8 @@ tf.flags.DEFINE_integer("sent_length", 21, "the fixed window size (default: 13),
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("num_epochs", 150, "Number of training epochs (default: 200)")
-tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
+#tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
+tf.flags.DEFINE_integer("evaluate_every", 10, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
 tf.flags.DEFINE_string("train_mode", "train_from_scratch", "Train mode (default: train_from_scratch)")
@@ -67,11 +68,11 @@ print("Loading data...")
 #x_train, title_train, y_train, train_beg, train_end, train_entity, train_sf = \
 y_train, x_train, train_entity = \
         data_helpers.load_data_and_labels(
-                FLAGS.train_data, class_num=10)
+                FLAGS.train_data, class_num=10, is_train=True)
 #x_dev, title_dev, y_dev, dev_beg, dev_end, dev_entity, dev_sf = \
 y_dev, x_dev, dev_entity = \
         data_helpers.load_data_and_labels(
-                FLAGS.test_data, class_num=10)
+                FLAGS.test_data, class_num=10, is_train=False)
 
 # # 确定窗口大小n（n=13）
 # # ==================================================
@@ -86,10 +87,11 @@ y_dev, x_dev, dev_entity = \
 # print num_1
 # print len(train_beg)
 
-x_train, train_pos, train_entity = \
+x_train, train_entity = \
         data_helpers.data_trim(x_train, train_entity, FLAGS.sent_length)
-x_dev, dev_pos, dev_entity = \
-        data_helpers.trigger2mid(x_dev, dev_entity, FLAGS.sent_length)
+x_dev, dev_entity = \
+        data_helpers.data_trim(x_dev, dev_entity, FLAGS.sent_length)
+#print 'train_entity {}'.format(train_entity)
 
 # 装载词向量
 def loadWord2Vec(filename):
@@ -165,17 +167,12 @@ with tf.Graph().as_default():
     with sess.as_default():
         cnn = TextCNN(
             sequence_length=max_x_length,
-            title_length=max_title_length,
             num_classes=y_train.shape[1],
             vocab_size=len(vocab_processor.vocabulary_),
             embedding_size=embedding_dim,
-            embedding_size_pos=FLAGS.embedding_pos_dim,
             embedding_size_entity=FLAGS.embedding_entity_dim,
-            embedding_size_sf=FLAGS.embedding_sf_dim,
             filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
             num_filters=FLAGS.num_filters,
-            title_filter_sizes=list(map(int, FLAGS.title_filter_sizes.split(","))),
-            title_num_filters=FLAGS.title_num_filters,
             sent_length=FLAGS.sent_length,
             entity_length = 5,
             l2_reg_lambda=FLAGS.l2_reg_lambda)
@@ -225,7 +222,7 @@ with tf.Graph().as_default():
 
         # Write vocabulary
         vocab_processor.save(os.path.join(out_dir, "vocab"))
-        title_vocab_processor.save(os.path.join(out_dir, "title_vocab"))
+        #title_vocab_processor.save(os.path.join(out_dir, "title_vocab"))
 
         # Initialize all variables
         sess.run(tf.global_variables_initializer())
@@ -236,17 +233,14 @@ with tf.Graph().as_default():
             print("Continue train from the model {}".format(ckpt.model_checkpoint_path))
             saver.restore(sess, ckpt.model_checkpoint_path)
 
-        def train_step(x_batch, y_batch, title_batch, train_pos, train_entity, train_sf):
+        def train_step(x_batch, y_batch, train_entity):
             """
             A single training step
             """
             feed_dict = {
               cnn.input_x: x_batch,
               cnn.input_y: y_batch,
-              cnn.input_title: title_batch,
-              cnn.input_pos: train_pos,
               cnn.input_entity: train_entity,
-              cnn.input_sf: train_sf,
               cnn.dropout_keep_prob: FLAGS.dropout_keep_prob,
               cnn.embedding_placeholder: embedding
             }
@@ -258,27 +252,26 @@ with tf.Graph().as_default():
                 ], \
                 feed_dict)
             y_true = np.argmax(y_batch, 1)
+            #print 'y_true:{}'.format(y_true)
+            #print 'pred:{}'.format(pred)
             acc = metrics.precision_score(y_true, pred, average="micro")
             recall = metrics.recall_score(y_true, pred, average="micro")
             f1_score = metrics.f1_score(y_true, pred, average="micro")
-            auc = metrics.roc_auc_score(y_true, pred, average="micro")
+            #auc = metrics.roc_auc_score(y_true, pred, average="micro")
             time_str = datetime.datetime.now().isoformat()
-            print("{}: step {}, loss {:g}, auc {:g}, acc {:g}, recal {:g}, f1 {:g}".format( \
-                    time_str, step, loss, auc, acc, recall, f1_score))
+            print("{}: step {}, loss {:g}, acc {:g}, recal {:g}, f1 {:g}".format( \
+                    time_str, step, loss, acc, recall, f1_score))
             sys.stdout.flush()
             train_summary_writer.add_summary(summaries, step)
 
-        def dev_step(x_batch, y_batch, title_batch, dev_pos, dev_entity, dev_sf, writer=None):
+        def dev_step(x_batch, y_batch, dev_entity, writer=None):
             """
             Evaluates model on a dev set
             """
             feed_dict = {
               cnn.input_x: x_batch,
               cnn.input_y: y_batch,
-              cnn.input_title: title_batch,
-              cnn.input_pos: dev_pos,
               cnn.input_entity: dev_entity,
-              cnn.input_sf: dev_sf,
               cnn.dropout_keep_prob: 1.0
             }
             step, summaries, loss, accuracy, pred = sess.run( \
@@ -291,7 +284,7 @@ with tf.Graph().as_default():
             acc = metrics.precision_score(y_true, pred, average="micro")
             recall = metrics.recall_score(y_true, pred, average="micro")
             f1_score = metrics.f1_score(y_true, pred, average="micro")
-            auc = metrics.roc_auc_score(y_true, pred, average="micro")
+            #auc = metrics.roc_auc_score(y_true, pred, average="micro")
             time_str = datetime.datetime.now().isoformat()
             print("{}: step {}, loss {:g}, auc {:g}, acc {:g}, recal {:g}, f1 {:g}".format( \
                     time_str, step, loss, auc, acc, recall, f1_score))
@@ -302,21 +295,26 @@ with tf.Graph().as_default():
 
         # Generate batches
         batches = data_helpers.batch_iter(
-            list(zip(x_train, y_train, title_train, train_pos, train_entity, train_sf)), FLAGS.batch_size, FLAGS.num_epochs)
+                list(zip(x_train, y_train, train_entity))
+                , FLAGS.batch_size
+                , FLAGS.num_epochs)
         # Training loop. For each batch...
         dev_accuracy = 0.0
         for batch in batches:
-            x_batch, y_batch, title_batch, train_pos, train_entity, train_sf = zip(*batch)
-            train_step(x_batch, y_batch, title_batch, train_pos, train_entity, train_sf)
+            x_batch, y_batch, train_entity= zip(*batch)
+            train_step(x_batch, y_batch, train_entity)
             current_step = tf.train.global_step(sess, global_step)
             if current_step % FLAGS.evaluate_every == 0:
                 print("\nEvaluation:")
-                dev_acc = dev_step(x_dev, y_dev, title_dev, dev_pos, dev_entity, dev_sf, writer=dev_summary_writer)
+                sys.stdout.flush()
+                dev_acc = dev_step(x_dev, y_dev, dev_entity, writer=dev_summary_writer)
                 print("")
                 if dev_acc > dev_accuracy:
                     dev_accuracy = dev_acc
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                     print("Saved model checkpoint to {}\n".format(path))
+                    sys.stdout.flush()
             # if current_step % FLAGS.checkpoint_every == 0:
             #     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
             #     print("Saved model checkpoint to {}\n".format(path))
+
