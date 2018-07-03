@@ -3,5 +3,7 @@
 # Copyright (C) hanzhonghua@dingfudata.com
 #
 
-python bin/train.py > tmp.log 2>&1 &
+dd=`date +%Y%m%d_%H%M%S`
+
+python bin/train.py > tmp_$dd.log 2>&1 &
 

@@ -46,7 +46,7 @@ def get_entity_id(entity, is_train):
             entity_dict[entity] = len(entity_dict)
     return entity_dict[entity]
 
-def load_data_and_labels(file, class_num, is_train=False):
+def load_data_from_list(data_list, class_num, is_train=False):
     '''
     读取输入数据
     arg:
@@ -63,7 +63,7 @@ def load_data_and_labels(file, class_num, is_train=False):
     entity = []
     vocab = set()
     triggers = []
-    for ln in open(file, 'r'):
+    for ln in data_list:
         ln = ln.decode('utf-8')
         fe = ln.strip().split('\t')
         if len(fe) <3:
@@ -85,6 +85,23 @@ def load_data_and_labels(file, class_num, is_train=False):
     for i, items in enumerate(y, 0):
         ny[i, items] = 1
     return ny, input_x, entity
+
+
+def load_data_and_labels(file, class_num, is_train=False):
+    '''
+    读取输入数据
+    arg:
+        file: 输入数据
+        class_num: 类别数量
+        is_train: 是否为训练过程，如果为训练过程可能增加新标签
+    return:
+        ny: 标注的分类结果
+        input_x: 内容分词结果，[]
+        entity: 实体类型
+    '''
+    f = open(file, 'r')
+
+    return load_data_from_list(f, class_num, is_train)
 
 def load_label_dict(file):
     f = open(file, "r")
@@ -171,7 +188,7 @@ def batch_iter(data, batch_size, num_epochs, shuffle=True):
     data_size = len(data)
     num_batches_per_epoch = int((len(data)-1)/batch_size) + 1
     for epoch in range(num_epochs):
-        print "epoch: {}#".format(epoch)
+        print "epoch: # {}".format(epoch)
         # Shuffle the data at each epoch
         if shuffle:
             shuffle_indices = np.random.permutation(np.arange(data_size))

@@ -3,6 +3,8 @@
 # Copyright (C) hanzhonghua@dingfudata.com
 #
 
-python bin/Predict.py
+set -ex
 
+python bin/Predict.py /home/op/hanzhonghua/multi_label/runs/20180702_155316/checkpoints < data/preprocess/test.seg > pred.log
+python bin/eval.py < pred.log
 

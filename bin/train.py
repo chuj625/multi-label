@@ -45,8 +45,7 @@ tf.flags.DEFINE_integer("sent_length", 21, "the fixed window size (default: 13),
 # Training parameters
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
 tf.flags.DEFINE_integer("num_epochs", 150, "Number of training epochs (default: 200)")
-#tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
-tf.flags.DEFINE_integer("evaluate_every", 10, "Evaluate model on dev set after this many steps (default: 100)")
+tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
 tf.flags.DEFINE_string("train_mode", "train_from_scratch", "Train mode (default: train_from_scratch)")
@@ -257,7 +256,6 @@ with tf.Graph().as_default():
             acc = metrics.precision_score(y_true, pred, average="micro")
             recall = metrics.recall_score(y_true, pred, average="micro")
             f1_score = metrics.f1_score(y_true, pred, average="micro")
-            #auc = metrics.roc_auc_score(y_true, pred, average="micro")
             time_str = datetime.datetime.now().isoformat()
             print("{}: step {}, loss {:g}, acc {:g}, recal {:g}, f1 {:g}".format( \
                     time_str, step, loss, acc, recall, f1_score))
@@ -284,10 +282,9 @@ with tf.Graph().as_default():
             acc = metrics.precision_score(y_true, pred, average="micro")
             recall = metrics.recall_score(y_true, pred, average="micro")
             f1_score = metrics.f1_score(y_true, pred, average="micro")
-            #auc = metrics.roc_auc_score(y_true, pred, average="micro")
             time_str = datetime.datetime.now().isoformat()
-            print("{}: step {}, loss {:g}, auc {:g}, acc {:g}, recal {:g}, f1 {:g}".format( \
-                    time_str, step, loss, auc, acc, recall, f1_score))
+            print("{}: step {}, loss {:g}, acc {:g}, recal {:g}, f1 {:g}".format( \
+                    time_str, step, loss, acc, recall, f1_score))
             sys.stdout.flush()
             if writer:
                 writer.add_summary(summaries, step)
