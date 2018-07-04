@@ -14,10 +14,10 @@ import csv
 from tensorflow.contrib import learn
 from sklearn import metrics
 
-#def tokenizer(iterator):
-#    TOKENIZER_RE = re.compile(r"[^\s]+", re.UNICODE)
-#    for value in iterator: 
-#        yield TOKENIZER_RE.findall(value)
+def tokenizer(iterator):
+    TOKENIZER_RE = re.compile(r"[^\s]+", re.UNICODE)
+    for value in iterator: 
+        yield TOKENIZER_RE.findall(value)
 
 entity_dict = {"<crf_org>":2, "<numpure>":1, "<s_person>":3, "<person>":3, "<tm_company>":2, "<time>":4, "org": 2, "num": 1, "per": 3, "o": 0, "tim": 4}
 entity_generalize = {"org": "<crf_org>", "num": "<numpure>", "per": "<s_person>", "tim": "<time>"}
@@ -27,7 +27,6 @@ class Predict:
         # self.flags=None
         self.vocab_processor=None
         self.title_vocab_processor = None
-        self.label_dict = None
         self.sess = None
         self.model_operations = None
 
@@ -38,7 +37,6 @@ class Predict:
         self.sent_length = sent_length
         self.checkpoint_dir = checkpoint_dir
         self.vocab_processor = self.voc_define()
-        self.label_dict = self.label_define()
         self.sess,self.model_operations = self.load_session()
 
     def voc_define(self):
@@ -48,11 +46,6 @@ class Predict:
         #vp.restore(vocab_path)
         
         return vocab_processor
-
-    def label_define(self):
-        label_dict = data_helpers.load_label_dict(self.label_dict_dir)
-        # print sorted(label_dict.items(), lambda x, y: cmp(x[1], y[1]))
-        return label_dict
 
     def load_session(self):
         sess = tf.Session()
@@ -75,43 +68,9 @@ class Predict:
                 (input_x,input_y, input_entity,dropout_keep_prob,predictions)
         return sess,model_operations
 
-    def load_data_and_labels(self,sentences):
-        '''
-        读取输入数据
-        arg:
-            sentences: 
-                标准结果（不用）
-                内容分词结果
-                ner结果
-        return:
-            input_x: 内容泛化分词结果，[]
-            entity: 实体类型
-            ny: 标注的分类结果
-        '''
-        input_x = []
-        input_title = []
-        y = []
-        entity = []
-        for ln in sentences:
-            ln = ln.decode('utf-8')
-            fe = ln.strip().split('\t')
-            # print json.dumps(title_text, ensure_ascii=False)
-            x_text = fe[1].split(' ')
-            # print json.dumps(x_text, ensure_ascii=False)
-            input_x.append(x_text)
-            # 标签
-            label = ln[0]
-            y.append(int(label))
-            # 实体类型
-            ent = fe[2].split(' ')
-            entity.append(ent)
-        ny = np.zeros((len(y), len(self.label_dict)))
-        for i, items in enumerate(y, 0):
-            ny[i, items] = 1
-        return input_x, entity, ny
-
     def predict(self,sample):
-        x_dev, dev_entity,y_dev = self.load_data_and_labels(sample)
+        #x_dev, dev_entity,y_dev = data_helpers.load_data_from_list(sample, class_num=10)
+        y_dev, x_dev, dev_entity= data_helpers.load_data_from_list(sample, class_num=10)
         x_dev, dev_entity = \
                 data_helpers.data_trim(x_dev, dev_entity, self.sent_length)
         x_dev = np.array(list( \
@@ -129,8 +88,17 @@ class Predict:
             res.append(y)
         return res
 
+
 if __name__ == '__main__':
     pred = Predict()
     pred.init(21, sys.argv[1])
+    ins = []
+    for ln in sys.stdin:
+        ln = ln.strip()
+        ins.append(ln)
+    res = pred.predict(ins)
+    ins = [x.split('\t') for x in ins]
+    for r, i in zip(res, ins):
+        print '{}\t{}\t{}'.format(i[0], r, '\t'.join(i[1:]))
 
 
