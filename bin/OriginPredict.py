@@ -10,11 +10,19 @@
 import sys
 reload(sys)
 sys.setdefaultencoding("utf-8")
+import os
 
-
-sys.path.append('/home/hanzhonghua/project/multi_label/tools')
+cur_dir= os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.sep.join([cur_dir, '../tools']))
 from Predict import Predict
 from wordseg_df import Wordseg
+
+import re
+
+def tokenizer(iterator):
+    TOKENIZER_RE = re.compile(r"[^\s]+", re.UNICODE)
+    for value in iterator: 
+        yield TOKENIZER_RE.findall(value)
 
 class OriginPredict:
     def __init__(self):
@@ -38,6 +46,8 @@ if __name__ == '__main__':
     op.init(sys.argv[1])
     for ln in sys.stdin:
         ln = ln.strip()
+        if not ln:
+            continue
         ln = ln.decode('utf-8')
         res = op.predict(ln)
         print '{}\t{}'.format(res, ln)
