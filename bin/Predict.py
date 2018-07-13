@@ -48,24 +48,21 @@ class Predict:
         return vocab_processor
 
     def load_session(self):
-        sess = tf.Session()
-        ckpt = tf.train.get_checkpoint_state(self.checkpoint_dir)  # 通过检查点文件锁定最新的模型
-        saver = tf.train.import_meta_graph(ckpt.model_checkpoint_path + '.meta')  # 载入图结构，保存在.meta文件中
-        saver.restore(sess, ckpt.model_checkpoint_path)
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+            sess = tf.Session()
+            ckpt = tf.train.get_checkpoint_state(self.checkpoint_dir)  # 通过检查点文件锁定最新的模型
+            saver = tf.train.import_meta_graph(ckpt.model_checkpoint_path + '.meta')  # 载入图结构，保存在.meta文件中
+            saver.restore(sess, ckpt.model_checkpoint_path)
 
-        graph = tf.get_default_graph()
+            input_x = self.graph.get_operation_by_name('input_x').outputs[0]
+            input_y = self.graph.get_operation_by_name('input_y').outputs[0]
+            input_entity = self.graph.get_operation_by_name('input_entity').outputs[0]
+            dropout_keep_prob = self.graph.get_operation_by_name("dropout_keep_prob").outputs[0]
 
-        # accuracy = tf.get_collection('accuracy')[0]
-        # print accuracy
-
-        input_x = graph.get_operation_by_name('input_x').outputs[0]
-        input_y = graph.get_operation_by_name('input_y').outputs[0]
-        input_entity = graph.get_operation_by_name('input_entity').outputs[0]
-        dropout_keep_prob = graph.get_operation_by_name("dropout_keep_prob").outputs[0]
-
-        predictions = graph.get_operation_by_name("output/predictions").outputs[0]
-        model_operations = \
-                (input_x,input_y, input_entity,dropout_keep_prob,predictions)
+            predictions = self.graph.get_operation_by_name("output/predictions").outputs[0]
+            model_operations = \
+                    (input_x,input_y, input_entity,dropout_keep_prob,predictions)
         return sess,model_operations
 
     def predict(self,sample):
