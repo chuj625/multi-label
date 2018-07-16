@@ -35,8 +35,13 @@ class OriginPredict:
 
     def predict(self, ins):
         sent_seg = self.wordseg.seg(ins, 1)
-        segs = [x[0] for x in sent_seg]
-        ners = [x[3] for x in sent_seg]
+        segs = []
+        ners = []
+        for x in sent_seg:
+            if x[0] == ' ' or x[0] == '\t':
+                continue
+            segs.append(x[0])
+            ners.append(x[3])
         ni = '0\t{}\t{}'.format(' '.join(segs), ' '.join(ners))
         res = self.model.predict([ni])
         return res[0]

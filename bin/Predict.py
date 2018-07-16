@@ -67,7 +67,7 @@ class Predict:
 
     def predict(self,sample):
         #x_dev, dev_entity,y_dev = data_helpers.load_data_from_list(sample, class_num=10)
-        y_dev, x_dev, dev_entity= data_helpers.load_data_from_list(sample, class_num=10)
+        y_dev, x_dev, dev_entity= data_helpers.load_data_from_list(sample, class_num=3)
         x_dev, dev_entity = \
                 data_helpers.data_trim(x_dev, dev_entity, self.sent_length)
         x_dev = np.array(list( \
